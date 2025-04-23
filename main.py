@@ -1,75 +1,77 @@
 
 import os
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InputFile
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-# Главное меню с эмодзи
-# Главное меню с эмодзи
-MAIN_MENU = ["🗂️ ЭДО", "📨 КЭДО", "📃 ДОГОВОРЫ", "🏢 КОНТРАГЕНТЫ", "🔑 ЗАБЫЛ ПАРОЛЬ ОТ СИСТЕМЫ/НЕ МОГУ ВОЙТИ"]
 BACK = "⬅️ Назад"
-
-SUBMENUS = {
-    "🗂️ ЭДО": ["📝 Служебные записки", "📤 Исходящие письма", "📥 Входящие письма", BACK],
-    "📨 КЭДО": ["👤 Заявка на подбор персонала", "🛠️ Выход в выходной день", "💻 Удалённая работа", "🔁 Замещения", "👶 Декрет/Увольнение/СВО", BACK],
-    "📃 ДОГОВОРЫ": ["📄 Договор", "📑 Дополнительные соглашения/ПСЦ", "📋 Соглашения отдельно от договора", BACK],
-    "🏢 КОНТРАГЕНТЫ": ["🏢 Контрагент", "✍️ Подписанты", BACK],
-    "📝 Служебные записки": ["🆕 Создание", "✅ Согласование", "✏️ Редактирование/Корректировка", BACK],
-    "📤 Исходящие письма": ["🆕 Создание", "✅ Согласование", "✏️ Редактирование/Корректировка", BACK],
-    "📥 Входящие письма": ["🆕 Создание", "✅ Согласование", "✏️ Редактирование/Корректировка", BACK],
-    "👤 Заявка на подбор персонала": ["🆕 Создание", "❌ Отмена", BACK],
-    "🛠️ Выход в выходной день": ["🆕 Создание", BACK],
-    "💻 Удалённая работа": ["🆕 Создание", "📌 Причины описание", "🔐 Настройка VPN", BACK],
-    "🔁 Замещения": ["🆕 Создание", "❌ Отмена", BACK],
-    "👶 Декрет/Увольнение/СВО": ["🆕 Создание", "ℹ️ Информация", BACK],
-    "📄 Договор": ["🆕 Создание", "✅ Согласование", "✏️ Редактирование/Корректировка", BACK],
-    "📑 Дополнительные соглашения/ПСЦ": ["🆕 Создание", "✅ Согласование", "✏️ Редактирование/Корректировка", BACK],
-    "📋 Соглашения отдельно от договора": ["🆕 Создание", "✅ Согласование", "✏️ Редактирование/Корректировка", BACK],
-    "🏢 Контрагент": ["🆕 Создание", "✅ Согласование", "🔄 Повторное согласование", BACK],
-    "✍️ Подписанты": ["🆕 Создание", "✅ Согласование", BACK]
-}
 
 USER_STATE = {}
 
-# Отправка клавиатуры
-async def send_menu(update: Update, options):
-    keyboard = [[KeyboardButton(opt)] for opt in options]
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-    await update.message.reply_text("Выберите пункт:", reply_markup=reply_markup)
+# Ответы с краткой справкой и изображением
+RESPONSES = {
+    "📄 Договор: 🆕 Создание": {
+        "text": "Нажмите кнопку +Договор. Заполните обязательные поля (*), затем нажмите Сохранить и отправьте на согласование.",
+        "image": "dogovor_create.png"
+    },
+    "📑 Дополнительные соглашения/ПСЦ: 🆕 Создание": {
+        "text": "Нажмите +Доп. соглашение. Заполните все обязательные поля (*), прикрепите файл, выберите форму и сохраните.",
+        "image": "psc_card.png"
+    },
+    "📋 Соглашение отдельно от договора: 🆕 Создание": {
+        "text": "Нажмите +Соглашение. Укажите контрагента, тип соглашения, заполните обязательные поля (*) и сохраните.",
+        "image": "agreement_separate.png"
+    },
+    "🏢 Контрагент: 🆕 Создание": {
+        "text": "Нажмите +Контрагент. Укажите ИНН или название, заполните все обязательные поля (*), сохраните и отправьте на согласование.",
+        "image": "contractor_create.png"
+    }
+}
 
-# Команда /start
+# Главный экран
+MAIN_MENU = list(set(k.split(":")[0] for k in RESPONSES.keys()))
+
+# Навигация
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     USER_STATE[update.effective_user.id] = "MAIN"
-    await send_menu(update, MAIN_MENU)
+    keyboard = [[KeyboardButton(item)] for item in MAIN_MENU]
+    await update.message.reply_text("Выберите раздел:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
 
-# Обработка навигации
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
 
+    if text == BACK:
+        USER_STATE[user_id] = "MAIN"
+        keyboard = [[KeyboardButton(item)] for item in MAIN_MENU]
+        await update.message.reply_text("Возврат в главное меню:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
+        return
+
     current_state = USER_STATE.get(user_id, "MAIN")
 
-    if text == BACK:
-        if current_state in SUBMENUS:
-            for parent, items in SUBMENUS.items():
-                if current_state in items:
-                    USER_STATE[user_id] = parent
-                    return await send_menu(update, SUBMENUS[parent])
-        USER_STATE[user_id] = "MAIN"
-        return await send_menu(update, MAIN_MENU)
-
-    if current_state == "MAIN" and text in SUBMENUS:
+    # Первая навигация вглубь
+    if current_state == "MAIN" and any(k.startswith(text) for k in RESPONSES):
         USER_STATE[user_id] = text
-        return await send_menu(update, SUBMENUS[text])
+        options = [k.split(":")[1].strip() for k in RESPONSES if k.startswith(text)]
+        keyboard = [[KeyboardButton(option)] for option in options] + [[KeyboardButton(BACK)]]
+        await update.message.reply_text(f"Раздел: {text}. Выберите пункт:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
+        return
 
-    if current_state in SUBMENUS and text in SUBMENUS.get(current_state, []):
-        USER_STATE[user_id] = text
-        return await send_menu(update, SUBMENUS.get(text, [BACK]))
+    # Ответ по справке
+    full_key = f"{current_state}: {text}"
+    if full_key in RESPONSES:
+        resp = RESPONSES[full_key]
+        await update.message.reply_text(resp["text"])
+        try:
+            with open(f"images/{resp['image']}", "rb") as img:
+                await update.message.reply_photo(photo=InputFile(img))
+        except Exception:
+            await update.message.reply_text("⚠️ Картинка пока не прикреплена.")
+        return
 
-    await update.message.reply_text(f"🔹 Информация по теме: {text}")
+    await update.message.reply_text("Извините, я не понял. Нажмите /start для начала.")
 
-# Запуск
 if __name__ == '__main__':
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
