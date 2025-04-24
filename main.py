@@ -146,18 +146,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
 
-    if text == BACK:
-        USER_STATE[user_id] = "MAIN"
-        keyboard = [[KeyboardButton(item)] for item in MAIN_MENU]
-        await update.message.reply_text("Возврат в главное меню:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
-        return
-
     current_state = USER_STATE.get(user_id, "MAIN")
 
     # Первая навигация вглубь
     if current_state == "MAIN" and any(k.startswith(text) for k in RESPONSES):
         USER_STATE[user_id] = text
-        options = [k.split(":")[1].strip() for k in RESPONSES if k.startswith(text)]
+        options = []
+        for k in RESPONSES:
+            if k.startswith(text):
+                # Проверяем, что ключ разделяется на две части
+                parts = k.split(":")
+                if len(parts) > 1:
+                    options.append(parts[1].strip())
         keyboard = [[KeyboardButton(option)] for option in options] + [[KeyboardButton(BACK)]]
         await update.message.reply_text(f"Раздел: {text}. Выберите пункт:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
         return
